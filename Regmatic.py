@@ -88,6 +88,26 @@ class RegmaticWidget:
     self.movingSelector.setMRMLScene(slicer.mrmlScene)
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.movingSelector, 'setMRMLScene(vtkMRMLScene*)')
+                        
+    # Fiducial node selector
+    self.__fiducialSelector = slicer.qMRMLNodeComboBox()
+    self.__fiducialSelector.objectName = 'fiducialSelector'
+    self.__fiducialSelector.toolTip = "The fiducial."
+    self.__fiducialSelector.nodeTypes = ['vtkMRMLAnnotationFiducialNode']
+    self.__fiducialSelector.noneEnabled = False
+    self.__fiducialSelector.addEnabled = False
+    self.__fiducialSelector.removeEnabled = False
+    ioFormLayout.addRow("Fiducial:", self.__fiducialSelector)
+    self.__fiducialSelector.setMRMLScene(slicer.mrmlScene)
+    self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                        self.__fiducialSelector, 'setMRMLScene(vtkMRMLScene*)')
+                        
+    #check button for moving rotation point
+    self.__moverotCenterButton = qt.QCheckBox()
+    self.__moverotCenterButton.setEnabled(1)
+    moverotLabel = qt.QLabel('Define fiducial point as rotation center')
+    ioFormLayout.addRow(moverotLabel, self.__moverotCenterButton)
+    self.__moverotCenterButton.connect('stateChanged(int)', self.updateLogicFromGUI)
 
     # Transform node selector
     self.transformSelector = slicer.qMRMLNodeComboBox()
@@ -101,7 +121,7 @@ class RegmaticWidget:
     self.transformSelector.setMRMLScene(slicer.mrmlScene)
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.transformSelector, 'setMRMLScene(vtkMRMLScene*)')
-    selectors = (self.fixedSelector, self.movingSelector, self.transformSelector)
+    selectors = (self.fixedSelector, self.movingSelector, self.transformSelector,self.__fiducialSelector)
     for selector in selectors:
       selector.connect('currentNodeChanged(vtkMRMLNode*)', self.updateLogicFromGUI)
 
@@ -186,6 +206,8 @@ class RegmaticWidget:
     self.logic.fixed = self.fixedSelector.currentNode()
     self.logic.moving = self.movingSelector.currentNode()
     self.logic.transform = self.transformSelector.currentNode()
+    self.logic.fiducial = self.__fiducialSelector.currentNode()
+    self.logic.checked = self.__moverotCenterButton
     self.logic.sampleSpacing = self.sampleSpacingSlider.value
     self.logic.gradientWindow = self.gradientWindowSlider.value
     self.logic.stepSize = self.stepSizeSlider.value
@@ -257,7 +279,7 @@ class RegmaticLogic(object):
   Note: currently depends on numpy/scipy installation in mac system
   """
 
-  def __init__(self,fixed=None,moving=None,transform=None):
+  def __init__(self,fixed=None,moving=None,transform=None,fiducial=None,checked = None):
     self.interval = 2
     self.timer = None
 
@@ -270,6 +292,8 @@ class RegmaticLogic(object):
     self.fixed = fixed
     self.moving = moving
     self.transform = transform
+    self.fiducial = fiducial
+    self.checked = checked
 
     # optimizer state variables
     self.iteration = 0
@@ -421,9 +445,11 @@ class RegmaticLogic(object):
           global center, new_rot_point, mouv_mouse
           center = [0,0,0]
           #################### rotation with fiducial point as center: translation ° rotation ° (-translation) ####################
-          if slicer.util.getNode('vtkMRMLAnnotationFiducialNode1'):
-            fiducialNode = slicer.util.getNode('vtkMRMLAnnotationFiducialNode1')
-            fiducialNode.GetFiducialCoordinates(center)
+          print(self.checked)
+          if self.fiducial and self.checked.isChecked() :
+            # fiducialNode = slicer.util.getNode('vtkMRMLAnnotationFiducialNode1')
+            # fiducialNode.GetFiducialCoordinates(center)
+            self.fiducial.GetFiducialCoordinates(center)
             new_rot_point = [center[0]-self.tx0,center[1]-self.ty0,center[2]-self.tz0]
             translate_back = [k * -1 for k in new_rot_point]    
             mouv_mouse=[tx,ty,tz]
